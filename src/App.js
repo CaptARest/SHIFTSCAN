@@ -1,7 +1,3 @@
-bash
-
-cat /home/claude/shiftscan/src/App.js
-Output
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './index.css';
