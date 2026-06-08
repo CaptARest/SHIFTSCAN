@@ -1,4 +1,3 @@
-// API helper - talks to our Vercel serverless function which connects to Neon
 const BASE = '/api/db';
 
 async function dbCall(action, params = {}) {
