@@ -1,6 +1,6 @@
 bash
 
-cat /home/claude/shiftscan/src/index.css
+cat /home/claude/shiftscan/src/index.css | sed 's/[""''–—]//g'
 Output
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
