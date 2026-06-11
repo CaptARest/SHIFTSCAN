@@ -1,7 +1,3 @@
-bash
-
-cat > /home/claude/shiftscan/api/db.js << 'EOF'
-const { Pool } = require('pg');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
