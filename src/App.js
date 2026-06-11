@@ -346,7 +346,7 @@ export default function App() {
   const [error, setError] = useState(null);
 
  const payPeriod = useMemo(() => getPayPeriodDates(periodOffset), [periodOffset]);
-  const appUrl = window.location.origin;
+ const appUrl = window.location.origin + '/?clockin=true';
 
   useEffect(()=>{const t=setInterval(()=>setClock(new Date()),1000);return()=>clearInterval(t);},[]);
 
