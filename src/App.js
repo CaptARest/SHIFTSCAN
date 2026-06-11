@@ -376,7 +376,17 @@ export default function App() {
   const todayStr = new Date().toDateString();
   const todayPunches = punches.filter(p=>new Date(p.clock_in).toDateString()===todayStr);
 
-  if (!unlocked) return <ManagerPinGate onUnlock={()=>setUnlocked(true)} />;
+ const isClockInPage = new URLSearchParams(window.location.search).get('clockin') === 'true';
+
+if (isClockInPage) {
+  return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--gray-bg)',padding:'1rem'}}>
+      <ClockModal onClose={()=>{ window.location.href = window.location.pathname + '?clockin=true'; }} />
+    </div>
+  );
+}
+
+if (!unlocked) return <ManagerPinGate onUnlock={()=>setUnlocked(true)} />;
 
   function Dashboard() {
     const clocked = todayPunches.filter(p=>!p.clock_out).map(p=>employees.find(e=>e.id===p.employee_id)).filter(Boolean);
