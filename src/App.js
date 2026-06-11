@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import './index.css';
 import { db } from './supabaseClient';
 import QRCode from 'qrcode';
@@ -345,7 +345,7 @@ export default function App() {
   const [editPunch, setEditPunch] = useState(null);
   const [error, setError] = useState(null);
 
-  const payPeriod = getPayPeriodDates(periodOffset);
+ const payPeriod = useMemo(() => getPayPeriodDates(periodOffset), [periodOffset]);
   const appUrl = window.location.origin;
 
   useEffect(()=>{const t=setInterval(()=>setClock(new Date()),1000);return()=>clearInterval(t);},[]);
