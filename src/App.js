@@ -28,11 +28,27 @@ function calcPunchMinutes(punch) {
   return Math.max(0, Math.round((out - inn) / 60000));
 }
 
+function exportSummaryCSV(punches, employees, payPeriod) {
+  const header = ['Name','Role','Total Hours Worked'];
+  const rows = employees.map(emp => {
+    const mins = punches.filter(p=>p.employee_id===emp.id).reduce((sum,p)=>sum+calcPunchMinutes(p),0);
+    return [emp.name, emp.role||'Kitchen', minutesToHHMM(mins)];
+  });
+  const csv = [header,...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `shiftscan_summary_${fmtDate(payPeriod.start).replace(/\//g,'-')}_to_${fmtDate(payPeriod.end).replace(/\//g,'-')}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function exportCSV(punches, employees, payPeriod) {
-  const header = ['Employee','Phone','Date','Clock In','Effective In','Clock Out','Effective Out','Hours','Adjusted'];
+  const header = ['Employee','Phone','Role','Date','Clock In','Effective In','Clock Out','Effective Out','Hours','Adjusted'];
   const rows = punches.map(p => {
     const emp = employees.find(e => e.id === p.employee_id);
-    return [emp?.name||'', emp?.phone||'', fmtDate(p.clock_in), fmtTime(p.clock_in), fmtTime(p.effective_in),
+    return [emp?.name||'', emp?.phone||'', emp?.role||'', fmtDate(p.clock_in), fmtTime(p.clock_in), fmtTime(p.effective_in),
       fmtTime(p.clock_out), fmtTime(p.effective_out),
       p.clock_out ? minutesToHHMM(calcPunchMinutes(p)) : '', p.adjusted ? 'Yes' : 'No'];
   });
@@ -41,7 +57,7 @@ function exportCSV(punches, employees, payPeriod) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `shiftscan_${fmtDate(payPeriod.start).replace(/\//g,'-')}_to_${fmtDate(payPeriod.end).replace(/\//g,'-')}.csv`;
+  a.download = `shiftscan_detail_${fmtDate(payPeriod.start).replace(/\//g,'-')}_to_${fmtDate(payPeriod.end).replace(/\//g,'-')}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -243,7 +259,7 @@ function ClockModal({ onClose }) {
 }
 
 function EditEmployeeModal({ emp, schedules, onClose, onSaved }) {
-  const [form, setForm] = useState({name:emp.name,phone:emp.phone,pin:emp.pin});
+  const [form, setForm] = useState({name:emp.name,phone:emp.phone,pin:emp.pin,role:emp.role||'Kitchen'});
   const [sched, setSched] = useState(schedules.map(s=>({...s})));
   const [saving, setSaving] = useState(false);
   function toggleDay(i) { const exists=sched.find(s=>s.day_of_week===i); if(exists) setSched(prev=>prev.filter(s=>s.day_of_week!==i)); else setSched(prev=>[...prev,{day_of_week:i,start_time:'09:00',end_time:'17:00'}].sort((a,b)=>a.day_of_week-b.day_of_week)); }
@@ -264,7 +280,15 @@ function EditEmployeeModal({ emp, schedules, onClose, onSaved }) {
         <div><label className="label">Name</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} /></div>
         <div><label className="label">Phone</label><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} /></div>
       </div>
-      <div style={{marginBottom:'1rem'}}><label className="label">PIN</label><input value={form.pin} maxLength={6} onChange={e=>setForm(f=>({...f,pin:e.target.value}))} /></div>
+      <div className="grid2" style={{marginBottom:'1rem'}}>
+        <div><label className="label">PIN</label><input value={form.pin} maxLength={6} onChange={e=>setForm(f=>({...f,pin:e.target.value}))} /></div>
+        <div><label className="label">Role</label>
+          <select value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))}>
+            <option value="Kitchen">Kitchen</option>
+            <option value="Busser">Busser</option>
+          </select>
+        </div>
+      </div>
       <p className="label" style={{marginBottom:8}}>Schedule</p>
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
         {DAYS.map((d,i)=>{const active=sched.find(s=>s.day_of_week===i);return(<div key={i} style={{display:'flex',alignItems:'center',gap:8}}>
@@ -281,7 +305,7 @@ function EditEmployeeModal({ emp, schedules, onClose, onSaved }) {
 }
 
 function AddEmployeeModal({ onClose, onSaved }) {
-  const [form, setForm] = useState({name:'',phone:'',pin:''});
+  const [form, setForm] = useState({name:'',phone:'',pin:'',role:'Kitchen'});
   const [sched, setSched] = useState([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
@@ -290,7 +314,7 @@ function AddEmployeeModal({ onClose, onSaved }) {
   async function save() {
     if(!form.name||!form.phone||!form.pin){setErr('Name, phone, and PIN are required.');return;}
     setSaving(true);
-    const rows = await db.addEmployee({name:form.name,phone:form.phone.replace(/\D/g,''),pin:form.pin});
+    const rows = await db.addEmployee({name:form.name,phone:form.phone.replace(/\D/g,''),pin:form.pin,role:form.role});
     if(!rows.length){setErr('Phone may already be in use.');setSaving(false);return;}
     await db.setSchedules(rows[0].id, sched);
     setSaving(false); onSaved(); onClose();
@@ -305,7 +329,15 @@ function AddEmployeeModal({ onClose, onSaved }) {
         <div><label className="label">Full name</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} autoFocus /></div>
         <div><label className="label">Phone (digits only)</label><input value={form.phone} placeholder="8505550000" onChange={e=>setForm(f=>({...f,phone:e.target.value}))} /></div>
       </div>
-      <div style={{marginBottom:'1rem'}}><label className="label">PIN (4–6 digits)</label><input value={form.pin} maxLength={6} onChange={e=>setForm(f=>({...f,pin:e.target.value}))} /></div>
+      <div className="grid2" style={{marginBottom:'1rem'}}>
+        <div><label className="label">PIN (4–6 digits)</label><input value={form.pin} maxLength={6} onChange={e=>setForm(f=>({...f,pin:e.target.value}))} /></div>
+        <div><label className="label">Role</label>
+          <select value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))}>
+            <option value="Kitchen">Kitchen</option>
+            <option value="Busser">Busser</option>
+          </select>
+        </div>
+      </div>
       {err && <p style={{color:'var(--red)',fontSize:12,marginBottom:8}}>{err}</p>}
       <p className="label" style={{marginBottom:8}}>Schedule</p>
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
@@ -501,7 +533,7 @@ export default function App() {
                     {emp.name.split(' ').map(n=>n[0]).join('').toUpperCase()}
                   </div>
                   <div style={{flex:1}}>
-                    <p style={{fontWeight:500,fontSize:15}}>{emp.name}</p>
+                    <p style={{fontWeight:500,fontSize:15}}>{emp.name} <span className="badge" style={{background:emp.role==='Busser'?'var(--amber-light)':'var(--teal-light)',color:emp.role==='Busser'?'var(--amber)':'var(--teal-dark)',marginLeft:6}}>{emp.role||'Kitchen'}</span></p>
                     <p style={{fontSize:12,color:'var(--text-muted)'}}>📱 {emp.phone} · PIN: {emp.pin}</p>
                   </div>
                   <div style={{textAlign:'right'}}>
@@ -544,7 +576,8 @@ export default function App() {
             {employees.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
           {selEmp!=='all'&&<div style={{fontWeight:500,color:'var(--teal)'}}>Period total: {minutesToHHMM(empHours(selEmp))} hrs</div>}
-          <button className="btn-secondary" style={{marginLeft:'auto'}} onClick={()=>exportCSV(filtered,employees,payPeriod)}>⬇ Export CSV</button>
+          <button className="btn-secondary" style={{marginLeft:'auto'}} onClick={()=>exportSummaryCSV(punches,employees,payPeriod)}>⬇ Summary CSV</button>
+          <button className="btn-secondary" onClick={()=>exportCSV(filtered,employees,payPeriod)}>⬇ Detail CSV</button>
         </div>
         <div className="card">
           <table>
@@ -576,11 +609,12 @@ export default function App() {
       <div>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1rem',flexWrap:'wrap',gap:12}}>
           <PayPeriodNav offset={periodOffset} setOffset={setPeriodOffset} />
-          <button className="btn-secondary" onClick={()=>exportCSV(punches,employees,payPeriod)}>⬇ Export CSV</button>
+          <button className="btn-secondary" onClick={()=>exportSummaryCSV(punches,employees,payPeriod)}>⬇ Summary CSV</button>
+          <button className="btn-secondary" onClick={()=>exportCSV(punches,employees,payPeriod)}>⬇ Detail CSV</button>
         </div>
         <div className="card">
           <table>
-            <thead><tr><th>Employee</th><th>Phone</th><th>Days worked</th><th>Total hours</th><th>vs Schedule</th></tr></thead>
+            <thead><tr><th>Employee</th><th>Role</th><th>Phone</th><th>Days worked</th><th>Total hours</th><th>vs Schedule</th></tr></thead>
             <tbody>{employees.map(emp=>{
               const empP=punches.filter(p=>p.employee_id===emp.id&&p.clock_out);
               const mins=empHours(emp.id);
@@ -588,7 +622,7 @@ export default function App() {
               const schedMins=sched.reduce((sum,s)=>sum+(parseTimeMins(s.end_time)-parseTimeMins(s.start_time)),0)*2;
               const diff=mins-schedMins;
               return(<tr key={emp.id}>
-                <td style={{fontWeight:500}}>{emp.name}</td><td style={{color:'var(--text-muted)'}}>{emp.phone}</td>
+                <td style={{fontWeight:500}}>{emp.name}</td><td>{emp.role||'Kitchen'}</td><td style={{color:'var(--text-muted)'}}>{emp.phone}</td>
                 <td>{empP.length}</td><td style={{fontWeight:500,color:'var(--teal)'}}>{minutesToHHMM(mins)}</td>
                 <td><span style={{fontSize:12,color:Math.abs(diff)<30?'var(--text-muted)':diff>0?'var(--amber)':'var(--teal)'}}>
                   {diff===0?'On target':diff>0?`+${minutesToHHMM(diff)} over`:`${minutesToHHMM(Math.abs(diff))} under`}
