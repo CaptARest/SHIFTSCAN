@@ -23,14 +23,14 @@ module.exports = async function handler(req, res) {
         break;
       case 'addEmployee':
         ({ rows } = await client.query(
-          'INSERT INTO employees (name, phone, pin) VALUES ($1, $2, $3) RETURNING *',
-          [params.name, params.phone, params.pin]
+          'INSERT INTO employees (name, phone, pin, role) VALUES ($1, $2, $3, $4) RETURNING *',
+          [params.name, params.phone, params.pin, params.role || 'Kitchen']
         ));
         break;
       case 'updateEmployee':
         ({ rows } = await client.query(
-          'UPDATE employees SET name=$1, phone=$2, pin=$3 WHERE id=$4 RETURNING *',
-          [params.name, params.phone, params.pin, params.id]
+          'UPDATE employees SET name=$1, phone=$2, pin=$3, role=$4 WHERE id=$5 RETURNING *',
+          [params.name, params.phone, params.pin, params.role || 'Kitchen', params.id]
         ));
         break;
       case 'findByPhone':
